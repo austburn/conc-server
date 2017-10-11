@@ -1,7 +1,8 @@
 package main
 
 import (
-	"crypto/rand"
+	"io"
+	"math/rand"
 	"net"
 	"reflect"
 )
@@ -14,13 +15,21 @@ type Client struct {
 
 type Clients []Client
 
-func (clients Clients) broadcast(id []byte) {
-	for _, c := range clients {
+func (clients *Clients) broadcast(id []byte, msg []byte) {
+	for _, c := range *clients {
 		// c.Conn.Write(<-c.BroadcastCh)
 		if !reflect.DeepEqual(c.ID, id) {
-			c.Conn.Write([]byte("test"))
+			c.Conn.Write(msg)
 		}
 	}
+}
+
+func randId(b *[]byte) {
+	c := make([]byte, len(*b))
+	for i := range c {
+		c[i] = byte(rand.Intn(26) + 65)
+	}
+	*b = c
 }
 
 func main() {
@@ -37,22 +46,28 @@ func main() {
 		defer conn.Close()
 		broadcastCh := make(chan []byte)
 		id := make([]byte, 8)
-		rand.Read(id)
+		randId(&id)
 		client := Client{ID: id, BroadcastCh: broadcastCh, Conn: conn}
 		clients = append(clients, client)
-		go handleConnection(client)
-		clients.broadcast(client.ID)
+		go handleConnection(client, &clients)
 	}
 }
 
-func handleConnection(client Client) {
+func handleConnection(client Client, clients *Clients) {
 	for {
 		inputBuffer := make([]byte, 256)
 		n, err := client.Conn.Read(inputBuffer)
 		if err != nil {
+			if err == io.EOF {
+				break
+			}
 			panic(err)
 		} else {
-			client.Conn.Write(inputBuffer[:n])
+			divider := []byte{':', ' '}
+			msg := append(client.ID, divider...)
+			msg = append(msg, inputBuffer[:n]...)
+			client.Conn.Write(msg)
+			clients.broadcast(client.ID, msg)
 		}
 	}
 }

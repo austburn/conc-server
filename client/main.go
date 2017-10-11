@@ -26,11 +26,11 @@ func main() {
 func waitForData(conn net.Conn) {
 	for {
 		response := make([]byte, 256)
-		n, err := conn.Read(response)
+		_, err := conn.Read(response)
 		if err != nil {
 			panic(err)
 		} else {
-			fmt.Println("I got this", string(response), n, "bytes")
+			fmt.Printf("\n%s\n", string(response))
 		}
 	}
 }
